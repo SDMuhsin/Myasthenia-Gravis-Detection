@@ -63,12 +63,12 @@ EMBEDDING_DIM = 256
 XGB_PARAMS = {
     'objective': 'multi:softprob',
     'eval_metric': 'mlogloss',
-    'n_estimators': 500,
+    'n_estimators': 250,
     'learning_rate': 0.05,
-    'max_depth': 8,
+    'max_depth': 64,
     'subsample': 0.8,
     'colsample_bytree': 0.8,
-    'early_stopping_rounds': 50, # Moved here
+    'early_stopping_rounds': 100, # Moved here
     'use_label_encoder': False,
     'seed': RANDOM_STATE
 }
