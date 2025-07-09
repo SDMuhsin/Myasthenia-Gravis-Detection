@@ -26,7 +26,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module='sklearn')
 # ========================================================================================
 # --- Basic Setup ---
 BASE_DIR = './data'
-EXP_NAME = 'EXP_06_Overfitting_Mitigation' # New experiment name
+EXP_NAME = 'EXP_08_Overfitting_Mitigation' # New experiment name
 RESULTS_DIR = os.path.join('./results', EXP_NAME)
 LOG_FILENAME = f'{EXP_NAME}_results_log.txt'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -56,19 +56,19 @@ SEGMENT_LENGTH = PRE_ONSET_WINDOW + POST_ONSET_WINDOW
 N_FOLDS = 5
 EPOCHS = 100 # Keep epochs high, let scheduler and early stopping work
 BATCH_SIZE = 64
-LEARNING_RATE = 0.0003  # Strategy 4: Lower initial learning rate
-WEIGHT_DECAY = 5e-4     # Strategy 2: Increased L2 regularization
-DROPOUT_PROB = 0.6      # Strategy 2: Increased dropout
-EARLY_STOPPING_PATIENCE = 25 # Strategy 4 (related): Increased patience
+LEARNING_RATE = 0.00003  # Strategy 4: Lower initial learning rate
+WEIGHT_DECAY = 5e-3     # Strategy 2: Increased L2 regularization
+DROPOUT_PROB = 0.7      # Strategy 2: Increased dropout
+EARLY_STOPPING_PATIENCE = 5 # Strategy 4 (related): Increased patience
 LABEL_SMOOTHING = 0.1
 
 # --- NEW: Data Augmentation Parameters ---
 # Strategy 3: Configuration for new augmentation techniques
 AUGMENTATION_CONFIG = {
     'apply': True,
-    'jitter_strength': 0.05,
-    'n_warps': 3,
-    'warp_strength': 0.2
+    'jitter_strength': 0.1,
+    'n_warps': 6,
+    'warp_strength': 0.4
 }
 
 
