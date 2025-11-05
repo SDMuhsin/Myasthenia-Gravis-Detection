@@ -1,3 +1,7 @@
 data/
 env/
 results/
+
+LLM*.md
+*tracker.md
+llmdocs
