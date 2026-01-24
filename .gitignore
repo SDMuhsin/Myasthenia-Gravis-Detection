@@ -5,3 +5,10 @@ results/
 LLM*.md
 *tracker.md
 llmdocs
+
+paper
+*.log
+src/exp_**_eye**
+src/exp_**
+src/experiment_**
+.claude
