@@ -6,7 +6,14 @@ Uses convolutional positional encoding instead of traditional sinusoidal encodin
 
 Reference:
     Foumani et al. "Improving Position Encoding of Transformers for Multivariate
-    Time Series Classification" (DMKD 2023)
+    Time Series Classification" (DMKD 2024)
+
+Implementation Notes (faithful to paper):
+    - d_model: 128 (paper default)
+    - n_heads: 4-8 (paper default)
+    - n_layers: 3-4 (paper default)
+    - d_ff: 256-512 (paper default)
+    - Uses depthwise convolution for positional encoding (key innovation)
 """
 
 import torch
@@ -122,7 +129,7 @@ class ConvTranWrapper(PyTorchBaselineModel):
 
     Reference:
         Foumani et al. "Improving Position Encoding of Transformers for
-        Multivariate Time Series Classification" (DMKD 2023)
+        Multivariate Time Series Classification" (DMKD 2024)
     """
 
     def __init__(
@@ -130,10 +137,10 @@ class ConvTranWrapper(PyTorchBaselineModel):
         input_dim: int,
         num_classes: int = 2,
         seq_len: int = 290,
-        d_model: int = 64,  # Reduced for memory efficiency
-        n_heads: int = 4,
-        n_layers: int = 2,  # Reduced layers
-        d_ff: int = 128,  # Reduced for memory efficiency
+        d_model: int = 128,    # Paper default (was 64)
+        n_heads: int = 4,      # Paper default
+        n_layers: int = 3,     # Paper default (was 2)
+        d_ff: int = 256,       # Paper default (was 128)
         conv_kernel_size: int = 3,
         dropout: float = 0.1,
         max_seq_len: int = 512,  # Maximum sequence length for attention

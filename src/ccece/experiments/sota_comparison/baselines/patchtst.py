@@ -6,14 +6,60 @@ Segments time series into patches and uses Transformer for classification.
 
 Reference:
     Nie et al. "A Time Series is Worth 64 Words: Long-term Forecasting with Transformers" (ICLR 2023)
+
+Implementation Notes:
+    - Adaptive patch sizing based on sequence length (target ~12-16 patches)
+    - Uses channel-independent processing as per the original paper
+    - Instance normalization (RevIN) for better generalization
 """
 
 import torch
 import torch.nn as nn
 import math
-from typing import Optional
+from typing import Optional, Tuple
 
 from .base import PyTorchBaselineModel
+
+
+def compute_adaptive_patch_params(seq_len: int, min_patch_len: int = 8, max_patch_len: int = 64) -> Tuple[int, int]:
+    """
+    Compute adaptive patch_len and stride based on sequence length.
+
+    The original PatchTST paper tunes patch_len as a hyperparameter per dataset.
+    This function provides a reasonable default that targets ~12-16 patches.
+
+    Args:
+        seq_len: Length of input sequence
+        min_patch_len: Minimum patch length (default 8)
+        max_patch_len: Maximum patch length (default 64)
+
+    Returns:
+        Tuple of (patch_len, stride) where stride = patch_len // 2 (50% overlap)
+
+    Reference:
+        Nie et al. ICLR 2023 - patch_len is tuned per dataset, typically 8-64
+    """
+    # Target ~12-16 patches for effective attention
+    target_patches = 14
+
+    # Calculate ideal patch_len to achieve target_patches with 50% overlap
+    # n_patches = (seq_len - patch_len) // stride + 1
+    # With stride = patch_len // 2:
+    # n_patches ≈ 2 * seq_len / patch_len - 1
+    # Solving: patch_len ≈ 2 * seq_len / (n_patches + 1)
+
+    ideal_patch_len = int(2 * seq_len / (target_patches + 1))
+
+    # Clamp to reasonable bounds
+    patch_len = max(min_patch_len, min(ideal_patch_len, max_patch_len))
+
+    # Round to nearest power of 2 for efficiency (optional but common practice)
+    # patch_len = 2 ** int(round(math.log2(patch_len)))
+
+    # Stride is 50% overlap as per paper
+    stride = max(1, patch_len // 2)
+
+    return patch_len, stride
 
 
 class PatchEmbedding(nn.Module):
@@ -76,6 +122,8 @@ class PatchTSTWrapper(PyTorchBaselineModel):
     1. Patching: Segments time series into subseries patches
     2. Channel-independence: Each channel processed independently
     3. Instance normalization: Normalizes each input instance
+    4. **Adaptive patch sizing**: Automatically adjusts patch_len and stride
+       based on sequence length to maintain ~12-16 patches (NEW)
 
     Reference:
         Nie et al. "A Time Series is Worth 64 Words" (ICLR 2023)
@@ -86,8 +134,8 @@ class PatchTSTWrapper(PyTorchBaselineModel):
         input_dim: int,
         num_classes: int = 2,
         seq_len: int = 290,
-        patch_len: int = 16,
-        stride: int = 8,
+        patch_len: Optional[int] = None,  # None = adaptive
+        stride: Optional[int] = None,  # None = adaptive
         d_model: int = 128,
         n_heads: int = 4,
         n_layers: int = 3,
@@ -97,6 +145,12 @@ class PatchTSTWrapper(PyTorchBaselineModel):
         **kwargs,
     ):
         super().__init__(input_dim, num_classes, seq_len, device)
+
+        # Compute adaptive patch parameters if not provided
+        if patch_len is None or stride is None:
+            computed_patch_len, computed_stride = compute_adaptive_patch_params(seq_len)
+            patch_len = patch_len if patch_len is not None else computed_patch_len
+            stride = stride if stride is not None else computed_stride
 
         self.patch_len = patch_len
         self.stride = stride

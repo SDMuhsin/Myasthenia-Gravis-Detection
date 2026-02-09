@@ -7,6 +7,11 @@ for time series classification using random convolutional kernels.
 Reference:
     Dempster et al. "ROCKET: Exceptionally fast and accurate time series
     classification using random convolutional kernels" (DMKD 2020)
+
+Implementation Notes (faithful to paper):
+    - num_kernels: 10,000 (paper's recommended value)
+    - Extracts PPV (proportion of positive values) and max features per kernel
+    - Uses ridge regression or logistic regression for classification
 """
 
 import numpy as np
@@ -44,7 +49,7 @@ class ROCKETWrapper(BaselineModel):
         input_dim: int = 14,
         num_classes: int = 2,
         seq_len: int = 290,
-        num_kernels: int = 2000,
+        num_kernels: int = 10000,  # Paper default: 10,000 kernels (was 2000)
         max_seq_len: int = 500,  # Maximum sequence length before subsampling
         random_state: int = 42,
         **kwargs,

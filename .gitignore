@@ -1,6 +1,11 @@
 data/
 env/
 results/
+.docker_data
+
+*.pyc
+__pycache__/
+
 
 LLM*.md
 *tracker.md

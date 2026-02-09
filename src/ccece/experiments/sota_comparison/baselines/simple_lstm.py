@@ -12,6 +12,13 @@ from typing import Optional
 from .base import PyTorchBaselineModel
 
 
+def compute_downsample_factor(seq_len: int, max_seq_len: int = 1024) -> int:
+    """Compute downsampling factor for long sequences."""
+    if seq_len <= max_seq_len:
+        return 1
+    return max(1, (seq_len + max_seq_len - 1) // max_seq_len)
+
+
 class SimpleLSTM(PyTorchBaselineModel):
     """
     Standard 2-layer BiLSTM classifier.
@@ -35,6 +42,7 @@ class SimpleLSTM(PyTorchBaselineModel):
         num_layers: int = 2,
         dropout: float = 0.3,
         bidirectional: bool = True,
+        max_seq_len: int = 1024,  # Maximum sequence length before downsampling
         device: Optional[torch.device] = None,
         **kwargs,
     ):
@@ -45,6 +53,22 @@ class SimpleLSTM(PyTorchBaselineModel):
         self.dropout_rate = dropout
         self.bidirectional = bidirectional
         self.num_directions = 2 if bidirectional else 1
+        self.max_seq_len = max_seq_len
+
+        # Compute downsampling factor for long sequences
+        self.downsample_factor = compute_downsample_factor(seq_len, max_seq_len)
+        self.effective_seq_len = (seq_len + self.downsample_factor - 1) // self.downsample_factor
+
+        # Downsampling layer (strided convolution)
+        if self.downsample_factor > 1:
+            self.downsample = nn.Conv1d(
+                input_dim, input_dim,
+                kernel_size=self.downsample_factor,
+                stride=self.downsample_factor,
+                padding=0
+            )
+        else:
+            self.downsample = None
 
         # LSTM layer
         self.lstm = nn.LSTM(
@@ -76,6 +100,13 @@ class SimpleLSTM(PyTorchBaselineModel):
             Logits (batch, num_classes)
         """
         batch_size = x.size(0)
+
+        # Downsample if needed (for long sequences)
+        if self.downsample is not None:
+            # Conv1d expects (batch, channels, seq_len)
+            x = x.transpose(1, 2)  # (batch, input_dim, seq_len)
+            x = self.downsample(x)  # (batch, input_dim, effective_seq_len)
+            x = x.transpose(1, 2)  # (batch, effective_seq_len, input_dim)
 
         # LSTM forward pass
         # lstm_out: (batch, seq_len, hidden_dim * num_directions)

@@ -184,6 +184,13 @@ def run_all_comparisons(
             continue
 
         baseline_scores = np.array(baseline_results[metric])
+
+        # Skip comparison if arrays have different lengths (model failed on some folds)
+        if len(baseline_scores) != len(ours_scores):
+            print(f"  WARNING: Skipping {baseline_name} comparison - incomplete fold data "
+                  f"({len(baseline_scores)} vs {len(ours_scores)} folds)")
+            continue
+
         comparison = compare_to_baseline(baseline_name, baseline_scores, ours_scores, alpha)
         comparisons.append(comparison)
 

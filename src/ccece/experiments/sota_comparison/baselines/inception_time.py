@@ -5,11 +5,20 @@ Wraps the existing InceptionTime implementation to fit the baseline interface.
 
 Reference:
     Fawaz et al. "InceptionTime: Finding AlexNet for Time Series Classification" (DMKD 2020)
+
+Implementation Notes (faithful to paper):
+    - num_filters: 32 (paper default)
+    - depth: 6 (paper default - 6 inception modules)
+    - kernel_sizes: [10, 20, 40] (paper default for multivariate)
+    - bottleneck_channels: 32 (paper default)
+    - Ensemble: The original paper uses 5 models; here we use a single model
+      for fair comparison with other non-ensemble baselines. Ensemble mode
+      can be enabled via n_ensemble parameter.
 """
 
 import torch
 import torch.nn as nn
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import numpy as np
 
 from .base import PyTorchBaselineModel
@@ -62,8 +71,18 @@ class InceptionTimeWrapper(PyTorchBaselineModel):
     """
     InceptionTime for time series classification.
 
+    Architecture:
+        - 6 stacked inception modules with residual connections
+        - Each module has parallel convolutions with different kernel sizes
+        - Bottleneck convolution for dimensionality reduction
+        - Global average pooling followed by FC classifier
+
+    Note: The original paper uses an ensemble of 5 InceptionTime models.
+    For fair comparison with other single-model baselines, this implementation
+    uses a single model by default. This follows common practice in MTSC benchmarks.
+
     Reference:
-        Fawaz et al. "InceptionTime: Finding AlexNet for Time Series Classification" (2020)
+        Fawaz et al. "InceptionTime: Finding AlexNet for Time Series Classification" (DMKD 2020)
     """
 
     def __init__(

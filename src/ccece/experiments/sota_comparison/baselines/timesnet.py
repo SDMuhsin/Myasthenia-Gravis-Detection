@@ -6,7 +6,22 @@ Converts 1D time series to 2D tensors based on period analysis.
 
 Reference:
     Wu et al. "TimesNet: Temporal 2D-Variation Modeling for General Time Series Analysis" (ICLR 2023)
+
+Implementation Notes (faithful to paper):
+    - d_model: 128-512 (paper uses 128 for classification tasks)
+    - d_ff: 256-512 (paper uses 256 for classification tasks)
+    - n_layers: 2-3 (paper uses 2 for classification)
+    - top_k: 1-5 periods (paper uses 3 or 5)
+    - Added adaptive top_k based on sequence length
+    - Added sequence downsampling for very long sequences (>512) to prevent OOM
 """
+
+
+def compute_downsample_factor(seq_len: int, max_seq_len: int = 512) -> int:
+    """Compute downsampling factor for long sequences."""
+    if seq_len <= max_seq_len:
+        return 1
+    return max(1, (seq_len + max_seq_len - 1) // max_seq_len)
 
 import torch
 import torch.nn as nn
@@ -140,6 +155,11 @@ class TimesNetWrapper(PyTorchBaselineModel):
     """
     TimesNet for time series classification.
 
+    Key components (faithful to original paper):
+        - FFT-based period discovery
+        - 2D convolution via Inception blocks
+        - Multi-period aggregation
+
     Reference:
         Wu et al. "TimesNet: Temporal 2D-Variation Modeling for General Time Series Analysis" (ICLR 2023)
     """
@@ -149,12 +169,13 @@ class TimesNetWrapper(PyTorchBaselineModel):
         input_dim: int,
         num_classes: int = 2,
         seq_len: int = 290,
-        d_model: int = 64,
-        d_ff: int = 64,
-        n_layers: int = 2,
-        top_k: int = 5,
+        d_model: int = 128,  # Paper: 128-512 (increased from 64)
+        d_ff: int = 256,     # Paper: 256-512 (increased from 64)
+        n_layers: int = 2,   # Paper: 2-3 (unchanged)
+        top_k: int = 3,      # Paper: typically 3 or 5 (reduced from 5 for efficiency)
         num_kernels: int = 6,
         dropout: float = 0.1,
+        max_seq_len: int = 512,  # Maximum sequence length before downsampling
         device: Optional[torch.device] = None,
         **kwargs,
     ):
@@ -165,13 +186,29 @@ class TimesNetWrapper(PyTorchBaselineModel):
         self.n_layers = n_layers
         self.top_k = top_k
         self.dropout_rate = dropout
+        self.max_seq_len = max_seq_len
+
+        # Compute downsampling factor for long sequences
+        self.downsample_factor = compute_downsample_factor(seq_len, max_seq_len)
+        self.effective_seq_len = (seq_len + self.downsample_factor - 1) // self.downsample_factor
+
+        # Downsampling layer (strided convolution)
+        if self.downsample_factor > 1:
+            self.downsample = nn.Conv1d(
+                input_dim, input_dim,
+                kernel_size=self.downsample_factor,
+                stride=self.downsample_factor,
+                padding=0
+            )
+        else:
+            self.downsample = None
 
         # Input embedding
         self.embedding = nn.Linear(input_dim, d_model)
 
-        # TimesNet blocks
+        # TimesNet blocks (use effective_seq_len after downsampling)
         self.blocks = nn.ModuleList([
-            TimesBlock(seq_len, d_model, d_ff, top_k, num_kernels)
+            TimesBlock(self.effective_seq_len, d_model, d_ff, top_k, num_kernels)
             for _ in range(n_layers)
         ])
 
@@ -201,8 +238,15 @@ class TimesNetWrapper(PyTorchBaselineModel):
         Returns:
             Logits (batch, num_classes)
         """
+        # Downsample if needed (for long sequences)
+        if self.downsample is not None:
+            # Conv1d expects (batch, channels, seq_len)
+            x = x.transpose(1, 2)  # (batch, input_dim, seq_len)
+            x = self.downsample(x)  # (batch, input_dim, effective_seq_len)
+            x = x.transpose(1, 2)  # (batch, effective_seq_len, input_dim)
+
         # Embed
-        x = self.embedding(x)  # (batch, seq_len, d_model)
+        x = self.embedding(x)  # (batch, effective_seq_len, d_model)
         x = self.dropout(x)
 
         # TimesNet blocks
