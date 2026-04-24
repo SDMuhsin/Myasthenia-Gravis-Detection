@@ -1,19 +1,19 @@
-"""Simple raw-signal visualization: 4 random HC + 4 random MG patients.
+"""Raw-signal visualization: 4 random HC + 4 random MG patients.
 
-Two figures on vertical 1 Hz saccade CSVs:
+Two figures on vertical 1 Hz saccade CSVs, written to docs/figures/:
 
-  1. raw_overview.png  — 4 rows x 2 cols.
-     Left col = HC, right col = MG. Each cell overlays eye-position
-     ("amplitude"), target, and eye velocity on twin-y axes, all
-     zero-centred, over the full ~150 s recording.
+  1. 08_random_hc_vs_mg_overview.png  (4 rows x 2 cols)
+     Left col = HC, right col = MG. Each cell overlays eye position,
+     target, and eye velocity on twin-y axes, all zero-centred, over
+     the full ~150 s recording.
 
-  2. raw_zoom.png — 4 rows x 4 cols.
+  2. 09_random_hc_vs_mg_zoom.png  (4 rows x 4 cols)
      Each patient gets two side-by-side panels: first few saccades (left)
      and last few saccades (right). Column order: HC-start, HC-end,
      MG-start, MG-end.
 
-Classifier predictions are NOT used here — patients are picked uniformly
-at random from the HC and MG (Definite + Probable) pools.
+Patients are picked uniformly at random from the HC and MG (Definite +
+Probable) pools. No classifier is used.
 
 Run from project root:
     ./env/bin/python src/tools/mg_vs_hc_raw_signal_grid.py
@@ -42,16 +42,16 @@ MG_FOLDERS = ["Definite MG", "Probable MG"]
 HC_FOLDERS = ["Healthy control"]
 
 DATA_DIR = os.path.abspath("./data")
-RESULTS_DIR = os.path.abspath("./results/sanity_check_mg_vs_hc")
-os.makedirs(RESULTS_DIR, exist_ok=True)
+OUT_DIR = os.path.abspath("./docs/figures")
+os.makedirs(OUT_DIR, exist_ok=True)
 
 SAMPLE_RATE = DEFAULT_SAMPLE_RATE  # 120 Hz
 RNG_SEED = 7
 N_PER_GROUP = 4
 N_SACCADES_ZOOM = 5  # how many target jumps to show at each end
 
-POS_YLIM = 25.0   # degrees — clip eye position to hide blink spikes
-VEL_YLIM = 700.0  # deg/s  — clip velocity for the same reason
+POS_YLIM = 25.0   # degrees, clip eye position to hide blink spikes
+VEL_YLIM = 700.0  # deg/s,  clip velocity for the same reason
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ def preprocess(df: pd.DataFrame) -> dict:
     target = df["TargetV"].values.astype(float)
     lv = df["LV"].values.astype(float)
     rv = df["RV"].values.astype(float)
-    # Target is nominally symmetric around 0 — subtract its own mean in case of drift.
+    # Target is nominally symmetric around 0; subtract its own mean in case of drift.
     target_c = target - float(np.mean(target))
     lv_c = lv - fixation_offset(lv, target)
     rv_c = rv - fixation_offset(rv, target)
@@ -292,12 +292,12 @@ def render_overview(hc: list, mg: list) -> str:
                 )
 
     fig.suptitle(
-        "Random 4 HC vs 4 MG — full-session vertical 1 Hz saccades.  "
+        "Random 4 HC vs 4 MG, full-session vertical 1 Hz saccades.  "
         "Position & target on left axis (°); velocity on right axis (°/s).",
         fontsize=13,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.96])
-    out = os.path.join(RESULTS_DIR, "raw_overview.png")
+    out = os.path.join(OUT_DIR, "08_random_hc_vs_mg_overview.png")
     fig.savefig(out, dpi=140)
     plt.close(fig)
     return out
@@ -343,12 +343,12 @@ def render_zoom(hc: list, mg: list) -> str:
             )
 
             ax_a.set_title(
-                f"{patient_title(group_label, visit, row)}  —  first "
+                f"{patient_title(group_label, visit, row)}  |first "
                 f"{N_SACCADES_ZOOM} saccades",
                 fontsize=10, fontweight="bold",
             )
             ax_b.set_title(
-                f"{patient_title(group_label, visit, row)}  —  last "
+                f"{patient_title(group_label, visit, row)}  |last "
                 f"{N_SACCADES_ZOOM} saccades",
                 fontsize=10, fontweight="bold",
             )
@@ -360,14 +360,14 @@ def render_zoom(hc: list, mg: list) -> str:
                             fontsize=7, framealpha=0.85, ncol=3)
 
     fig.suptitle(
-        "Zoomed comparison — first vs last saccades for the same 4 HC and "
+        "Zoomed comparison: first vs last saccades for the same 4 HC and "
         "4 MG patients (vertical 1 Hz).  "
         "If MG shows amplitude-velocity dissociation, the blue position "
         "trace should shrink left→right while red velocity stays tall.",
         fontsize=13,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.955])
-    out = os.path.join(RESULTS_DIR, "raw_zoom.png")
+    out = os.path.join(OUT_DIR, "09_random_hc_vs_mg_zoom.png")
     fig.savefig(out, dpi=140)
     plt.close(fig)
     return out

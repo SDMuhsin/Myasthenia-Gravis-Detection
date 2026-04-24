@@ -6,16 +6,19 @@ Analysis code for detecting Myasthenia Gravis (MG) from 120 Hz video oculography
 
 ```
 .
-├── data/                 # raw CSVs (read-only, gitignored)
+├── data/            # raw CSVs (read-only, gitignored)
 ├── src/
-│   ├── utils/            # reusable library code
-│   ├── tools/            # one-shot scripts and figure generators
-│   └── exp_*.py          # numbered experiments
-├── results/              # output figures, tables, reports
-├── env/                  # Python 3.10 virtualenv (not checked in)
+│   ├── utils/       # reusable library code
+│   ├── tools/       # one-shot scripts and figure generators
+│   └── exp_*.py     # numbered experiments
+├── results/         # experiment outputs (gitignored)
+├── docs/figures/    # onboarding figures (tracked in git)
+├── env/             # Python 3.10 virtualenv (not checked in)
 ├── requirements.txt
-└── scripts/              # auxiliary scripts
+└── scripts/         # auxiliary scripts
 ```
+
+Everything under `results/` is scratch output from experiments and is not tracked. Everything under `docs/figures/` is tracked and meant to give a new developer a picture of the data without running any code.
 
 ## Environment
 
@@ -59,17 +62,19 @@ Three levels:
 
 Some patients appear in more than one visit folder. For aggregation, use `(group, stripped_name)` as the patient identifier so that cross-group name collisions stay separate.
 
-### Counts (April 2026)
+### Cohort sizes
 
-| Group               | Visit folders | CSVs  |
-|---------------------|--------------:|------:|
-| Healthy control     | 86            | 510   |
-| Definite MG         | 73            | 431   |
-| Probable MG         | 65            | 390   |
-| CNP 3rd nerve       | 41            | 246   |
-| CNP 4th nerve       | 31            | 186   |
-| CNP 6th nerve       | 49            | 293   |
-| **Total**           | **345**       | **2056** |
+![Counts per clinical group](docs/figures/01_group_counts.png)
+
+| Group               | Unique patients | Visits | CSVs  |
+|---------------------|----------------:|-------:|------:|
+| Healthy control     | 86              | 86     | 510   |
+| Definite MG         | 63              | 73     | 431   |
+| Probable MG         | 49              | 65     | 390   |
+| CNP 3rd nerve       | 38              | 41     | 246   |
+| CNP 4th nerve       | 29              | 31     | 186   |
+| CNP 6th nerve       | 45              | 49     | 293   |
+| **Total**           | **310**         | **345** | **2056** |
 
 ### CSV format
 
@@ -102,36 +107,57 @@ df = pd.read_csv(csv_path, encoding="utf-16-le", sep=",")
 df.columns = [c.strip() for c in df.columns]
 ```
 
-### What a recording looks like
+### What one recording looks like
 
-Below are four HC recordings on the left and four MG recordings on the right, full 150 s vertical 1 Hz sessions. Target is black (step function), eye position is blue (left y-axis, degrees), velocity is red (right y-axis, deg/s). All signals are centred at zero.
+One HC patient, vertical 1 Hz stimulus, full 150 s session. The top panel shows the target step function across the whole session. The middle panel zooms to the first 20 s with the eye (blue) tracking the target (black). The bottom panel is the velocity trace, one upward and one downward spike per saccade.
 
-![Random 4 HC vs 4 MG full session overview](results/sanity_check_mg_vs_hc/raw_overview.png)
+![One recording across three views](docs/figures/02_single_recording.png)
 
-The same eight patients, zoomed to the first five and last five saccades of each recording. Four columns: HC first saccades, HC last saccades, MG first saccades, MG last saccades.
+### Six stimulus conditions
 
-![Zoomed first vs last saccades](results/sanity_check_mg_vs_hc/raw_zoom.png)
+Same patient across all six conditions (two axes by three frequencies). The first 15 s of each recording. Higher-frequency stimuli step more often in the same window.
 
-For a single-trial view showing the target jump, the saccade onset, the landing window, and peak velocity, see:
+![Six stimulus conditions](docs/figures/03_stimulus_conditions.png)
 
-- `results/exp_22_dynamic_fatigability/figures/walkthrough/2_raw_zoom.png` (position)
-- `results/exp_22_dynamic_fatigability/figures/walkthrough/3_velocity.png` (velocity)
+### Anatomy of one saccade
 
-Regenerate those with `./env/bin/python src/tools/make_walkthrough_figures.py`.
+This is what one trial looks like. The target steps at `t_jump`. The eye begins a saccade at `s`, defined as the first sample where velocity crosses 30 °/s. The 150 ms after `s` is the landing window, from which the extractor reads amplitude, gain, and peak velocity. The orange dot marks the peak velocity `V_p`.
+
+![One saccade annotated](docs/figures/04_saccade_anatomy.png)
+
+### Cross-group examples
+
+One random recording from each clinical group. Same 1 Hz vertical stimulus, same ~150 s session length. Target is black, eye position is blue (left axis, degrees), velocity is red (right axis, deg/s).
+
+![One recording from each group](docs/figures/06_cross_group_examples.png)
+
+### HC vs MG at scale
+
+Four random HC patients on the left, four random MG patients on the right.
+
+![Random HC vs MG overview](docs/figures/08_random_hc_vs_mg_overview.png)
+
+The same eight patients zoomed to their first five and last five saccades. If a patient is showing fatigability (the clinical MG signature), their position amplitude should shrink from the left-hand zoom to the right-hand zoom while velocity stays tall.
+
+![Random HC vs MG zoomed](docs/figures/09_random_hc_vs_mg_zoom.png)
 
 ### DC offset and centering
 
-Raw eye-position signals have a patient-specific DC offset. A patient's `LV` median can sit anywhere between roughly -15° and +15° depending on calibration. To centre a recording at zero:
+Raw eye-position signals have a patient-specific DC offset. A patient's `LV` median can sit anywhere between roughly -15° and +15° depending on calibration.
+
+![Raw vs centered DC offsets](docs/figures/05_dc_offset.png)
+
+The fix, in three steps:
 
 1. Find samples where `|TargetV| < 0.5` (target at the centre-fixation dwell).
 2. Compute the mean eye position over those samples.
 3. Subtract that mean from the eye signal.
 
-Across all patients sampled, this leaves the eye within about ±2° of zero at centre fixation. The raw median or mean alone can be off by 15°.
+Across all patients sampled, this leaves the eye within about ±2° of zero at centre fixation.
 
 For older files where the target never stops at 0, fall back to the signal's own mean after outlier clipping.
 
-Reference implementation: `fixation_offset` in `src/tools/mg_vs_hc_raw_signal_grid.py`. The target itself is already close to zero-centred, so subtracting its own mean is enough for the target trace.
+Reference implementation: `fixation_offset` in `src/tools/mg_vs_hc_raw_signal_grid.py`. The target itself is close to zero-centred already, so subtracting its own mean is enough for the target trace.
 
 ### Velocity
 
@@ -142,6 +168,14 @@ from src.utils.saccade_kinematics import _smoothed_velocity, DEFAULT_SAMPLE_RATE
 
 v = _smoothed_velocity(eye_position, DEFAULT_SAMPLE_RATE)
 ```
+
+### Per-trial feature distributions
+
+After running the extractor on every Vertical 1 Hz CSV, the per-trial kinematic features distribute like this across the three main groups:
+
+![Kinematic distributions by group](docs/figures/07_kinematic_distributions.png)
+
+HC tends to have tighter, higher-gain distributions. MG and CNP both show more spread but differ in ways that are hard to see on a single-feature view. Group separation comes from trial-indexed fatigue dynamics, not from static summary statistics.
 
 ## Library code (`src/utils/`)
 
@@ -219,7 +253,7 @@ One row per `(patient, visit, eye, target-jump)`. 44,026 rows total. Scope: Vert
 | `group`           | short key: `HC`, `MG_Def`, `MG_Prob`, `CNP_3rd`, `CNP_4th`, `CNP_6th` |
 | `group_label`     | collapsed label: `HC`, `MG`, `CNP`                          |
 | `subtype`         | human-readable subtype, e.g. `Definite MG`, `3rd`           |
-| `patient_name`    | Korean name as it appears in the folder                     |
+| `patient_name`    | name as it appears in the folder                            |
 | `patient_key`     | `(group, name)` serialised                                  |
 | `visit_folder`    | `YYYY-MM-DD <name>`                                         |
 | `axis`            | always `Vertical` in this parquet                           |
@@ -248,16 +282,24 @@ df = pd.read_parquet(
 
 ## Tools (`src/tools/`)
 
-- `mg_vs_hc_raw_signal_grid.py`: picks four random HC and four random MG patients and plots target, eye position, and velocity. Writes `raw_overview.png` (full session) and `raw_zoom.png` (first vs last saccades) to `results/sanity_check_mg_vs_hc/`. Uses the `|TargetV| < 0.5` centering strategy.
+- `make_docs_figures.py`: generates every figure under `docs/figures/` from scratch (figures 01 through 07 above). Run this after any data refresh so onboarding images stay current.
+- `mg_vs_hc_raw_signal_grid.py`: produces figures 08 and 09 (random HC vs MG overview and zoom) under `docs/figures/`. Uses the `|TargetV| < 0.5` centering strategy.
 - `mg_vs_hc_sanity_check.py`: builds per-patient summary features from the per-trial parquet, runs 5-fold stratified Random Forest cross-validation, writes `predictions.csv` and a confusion matrix to `results/sanity_check_mg_vs_hc/`.
-- `make_walkthrough_figures.py`: generates the five-step pipeline figures under `results/exp_22_dynamic_fatigability/figures/walkthrough/`. Each figure shows one stage of the CSV-to-index pipeline on a single real HC sequence.
+- `make_walkthrough_figures.py`: generates a five-step pipeline figure set under `results/exp_22_dynamic_fatigability/figures/walkthrough/`. Each figure shows one stage of the CSV-to-index pipeline on a single real HC sequence.
+
+To rebuild every `docs/figures/` image in one go:
+
+```bash
+./env/bin/python src/tools/make_docs_figures.py
+./env/bin/python src/tools/mg_vs_hc_raw_signal_grid.py
+```
 
 ## Experiments (`src/`)
 
 Numbered scripts from `exp_01_*` through `exp_22_*`. Each writes to its own subdirectory under `results/`.
 
 - `exp_01` through `exp_21` use `data_loading.py` and explore aggregated whole-file features, classical ML, and sequence models.
-- `exp_22_dynamic_fatigability.py` uses the per-trial kinematic pipeline. It runs the partner-formula contract tests, extracts trials, fits fatigue indices, aggregates to patient level, runs primary endpoints and sensitivity checks, and writes `REPORT.md` to `results/exp_22_dynamic_fatigability/`. A full run takes about ten minutes.
+- `exp_22_dynamic_fatigability.py` uses the per-trial kinematic pipeline. It runs the contract tests in `test_partner_formulas.py`, extracts trials, fits fatigue indices, aggregates to patient level, runs primary endpoints and sensitivity checks, and writes `REPORT.md` to `results/exp_22_dynamic_fatigability/`. A full run takes about ten minutes.
 
 ## Results directory
 
@@ -277,9 +319,7 @@ results/
 │       └── walkthrough/                       # 5-step pipeline figures
 └── sanity_check_mg_vs_hc/
     ├── predictions.csv                        # per-patient OOF predictions
-    ├── confusion_matrix.txt
-    ├── raw_overview.png                       # random 4 HC + 4 MG full session
-    └── raw_zoom.png                           # first vs last saccades
+    └── confusion_matrix.txt
 ```
 
 ## Minimal worked example
@@ -308,7 +348,7 @@ On a typical HC recording you should see roughly 30 to 40 kept trials, median ga
 
 ## Conventions
 
-- Keep the repo root clean. Code in `src/`, data in `data/`, output in `results/`.
+- Keep the repo root clean. Code in `src/`, data in `data/`, experiment output in `results/`, onboarding figures in `docs/figures/`.
 - Set `HF_HOME`, `TORCH_HOME` and similar caches to subfolders under `data/` if you add model caching.
 - Edit files in place. Do not create `saccade_kinematics_v2.py` or similar.
 - Add new dependencies to `requirements.txt`.
