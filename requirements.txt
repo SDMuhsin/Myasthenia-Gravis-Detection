@@ -9,3 +9,4 @@ seaborn
 lightgbm
 xgboost
 sktime
+tabulate
